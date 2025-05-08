@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+
+	"github.com/buger/jsonparser"
 )
 
 func ensureFileExistence(fpath string) (*os.File, error) {
@@ -14,7 +16,24 @@ func ensureFileExistence(fpath string) (*os.File, error) {
 	return os.OpenFile(fpath, os.O_RDWR, 0644)
 }
 
+func parsePasswordJSON(passwords *[]Password, cberr *error) func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	return func(value []byte, vtype jsonparser.ValueType, _ int, err error) {
+		if err != nil || vtype != jsonparser.Object {
+			*cberr = err
+			return
+		}
+		password, err := CreatePasswordFromJSON(value)
+		if err != nil {
+			*cberr = err
+			return
+		}
+		// TODO: Parse policies
+		*passwords = append(*passwords, *password)
+	}
+}
+
 func hydrateDatabaseFromDisk(db *Database) error {
+	var cberr error = nil
 	file, err := ensureFileExistence(db.Options.FilePath)
 	if err != nil {
 		return err
@@ -24,8 +43,26 @@ func hydrateDatabaseFromDisk(db *Database) error {
 	if _, err := io.Copy(contents, file); err != nil {
 		return err
 	}
-	// Do JSON decoding here
-	return nil
+	jsonparser.ArrayEach(contents.Bytes(), parsePasswordJSON(&db.Passwords, &cberr), "passwords")
+	if cberr != nil {
+		return cberr
+	}
+	jsonparser.ArrayEach(contents.Bytes(), func(value []byte, vtype jsonparser.ValueType, _ int, err error) {
+		if err != nil || vtype != jsonparser.Object {
+			cberr = err
+			return
+		}
+		group, err := CreateGroupFromJSON(value)
+		if err != nil {
+			cberr = err
+			return
+		}
+		passwords := make([]Password, 0)
+		jsonparser.ArrayEach(value, parsePasswordJSON(&passwords), "passwords")
+		group.Passwords = passwords
+		db.Groups = append(db.Groups, *group)
+	}, "groups")
+	return cberr
 }
 
 func writeHydrationData(db *Database) error {
@@ -65,7 +102,9 @@ func CreateDatabase(opts ...DBOptFunc) *Database {
 		opt(db)
 	}
 	if db.Options.Hydrate && len(db.Options.FilePath) != 0 {
-		hydrateDatabaseFromDisk(db)
+		if err := hydrateDatabaseFromDisk(db); err != nil {
+			println()
+		}
 	}
 	return db
 }
