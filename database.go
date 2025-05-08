@@ -58,7 +58,7 @@ func hydrateDatabaseFromDisk(db *Database) error {
 			return
 		}
 		passwords := make([]Password, 0)
-		jsonparser.ArrayEach(value, parsePasswordJSON(&passwords), "passwords")
+		jsonparser.ArrayEach(value, parsePasswordJSON(&passwords, &cberr), "passwords")
 		group.Passwords = passwords
 		db.Groups = append(db.Groups, *group)
 	}, "groups")
