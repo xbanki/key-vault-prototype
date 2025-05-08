@@ -45,4 +45,5 @@ type Policy struct {
 type Group struct {
 	Passwords []Password `json:"passwords"`
 	Policies  []Policy   `json:"policies"`
+	Name      string     `json:"name"`
 }
