@@ -11,7 +11,7 @@ func ensureFileExistence(fpath string) (*os.File, error) {
 	if _, err := os.Stat(fpath); err != nil {
 		return os.Create(fpath)
 	}
-	return os.OpenFile(fpath, os.O_RDONLY|os.O_WRONLY, 0644)
+	return os.OpenFile(fpath, os.O_RDWR, 0644)
 }
 
 func hydrateDatabaseFromDisk(db *Database) error {
