@@ -16,6 +16,21 @@ func ensureFileExistence(fpath string) (*os.File, error) {
 	return os.OpenFile(fpath, os.O_RDWR, 0644)
 }
 
+func parsePolicyJSON(policies *[]Policy, cberr *error) func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	return func(value []byte, vtype jsonparser.ValueType, _ int, err error) {
+		if err != nil || vtype != jsonparser.Object {
+			*cberr = err
+			return
+		}
+		policy, err := CreatePolicyFromJSON(value)
+		if err != nil {
+			*cberr = err
+			return
+		}
+		*policies = append(*policies, *policy)
+	}
+}
+
 func parsePasswordJSON(passwords *[]Password, cberr *error) func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 	return func(value []byte, vtype jsonparser.ValueType, _ int, err error) {
 		if err != nil || vtype != jsonparser.Object {
@@ -27,7 +42,7 @@ func parsePasswordJSON(passwords *[]Password, cberr *error) func(value []byte, d
 			*cberr = err
 			return
 		}
-		// TODO: Parse policies
+		jsonparser.ArrayEach(value, parsePolicyJSON(&password.Policies, cberr), "policies")
 		*passwords = append(*passwords, *password)
 	}
 }
@@ -57,9 +72,8 @@ func hydrateDatabaseFromDisk(db *Database) error {
 			cberr = err
 			return
 		}
-		passwords := make([]Password, 0)
-		jsonparser.ArrayEach(value, parsePasswordJSON(&passwords, &cberr), "passwords")
-		group.Passwords = passwords
+		jsonparser.ArrayEach(value, parsePasswordJSON(&group.Passwords, &cberr), "passwords")
+		jsonparser.ArrayEach(value, parsePolicyJSON(&group.Policies, &cberr), "policies")
 		db.Groups = append(db.Groups, *group)
 	}, "groups")
 	return cberr

@@ -1,20 +1,18 @@
 package main
 
 const (
-	// Pin code policies
-	PolicyTypePinForeign PolicyType = iota
-	PolicyTypePinEveryone
+	// Unknown policy type
+	PolicyTypeUnknown = PolicyType(iota)
 
-	// Password policies
-	PolicyTypePasswordForeign
-	PolicyTypePasswordEveryone
+	// Passkey policy types
+	PolicyTypePassword
+	PolicyTypePin
 )
 
-type PolicyType = uint8
+type PolicyType uint8
 
 type PolicyMethods interface {
-	Execute(pa *Password, po *Policy) (bool, error)
-	Discriminate(pa *Password, po *Policy) bool
+	Execute(input []byte, password *Password, policy *Policy) (bool, error)
 }
 
 type DBOptFunc func(db *Database)
@@ -37,7 +35,11 @@ type Password struct {
 	Domain   string   `json:"domain"`
 }
 
+type PolicyPassword struct{}
+type PolicyPin struct{}
+
 type Policy struct {
+	Discriminator []byte     `json:"discriminator"`
 	Type          PolicyType `json:"type"`
 	PolicyMethods `json:"-"`
 }
